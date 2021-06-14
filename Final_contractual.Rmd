@@ -1,0 +1,272 @@
+---
+title: "trying new model"
+author: "Paola Priante"
+date: "6/11/2021"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r}
+library("tidymodels")
+library("themis")
+library("knitr")
+library("ranger")
+library("doParallel")
+library("vip")
+library("skimr")
+library("corrplot")
+library("ggridges")
+library("tidyverse")
+library("knitr")
+library("dplyr")
+library(patchwork)
+library(caret)
+library(vcd)
+library(gridExtra)
+library(knitr)
+library(corrplot)
+library(scales)
+library(lme4)
+library(InformationValue)
+library(ROCR)
+library(rpart)
+library(randomForest)
+library(MASS)
+library(penalized)
+library(rpart.plot)
+library(ggcorrplot)
+library(caTools)
+library(dplyr)
+library(rpart)
+library(ROSE)
+```
+
+
+```{r}
+rm(list = ls())
+load("processed_dataset.RData")
+```
+
+
+```{r}
+InRenew <- InRenew %>%
+dplyr::select(-repurchase, -date)
+```
+
+```{r}
+log_regression <- glm(churn1 ~ ., data=InRenew, family=binomial(link="logit"))
+summary(log_regression)
+```
+
+```{r}
+set.seed(8484775)
+sample_set <- InRenew %>%
+pull(.) %>%
+sample.split(SplitRatio = .7)
+InRenewTrain <- subset(InRenew, sample_set == TRUE)
+InRenewTest <- subset(InRenew, sample_set == FALSE)
+```
+
+
+```{r}
+set.seed(111)
+log.reg.imb <- glm(churn1 ~ ., data=InRenewTrain, family=binomial(link="logit"))
+summary(log.reg.imb)
+```
+
+```{r}
+InRenew_under<- ovun.sample(churn1 ~ ., data=InRenewTrain, method= "under")$data
+log.reg.bal <- glm(churn1 ~ ., data=InRenew_under, family=binomial)
+```
+
+
+```{r}
+predictions_imb <- predict(log.reg.imb, InRenewTest, type = "response")
+
+
+predictions_bal <- predict(log.reg.bal, InRenewTest, type = "response")
+```
+
+```{r}
+pred_imb <- prediction(predictions_imb, InRenewTest$churn1)
+plot(performance(pred_imb, "tpr", "fpr"), colorize = TRUE)
+
+pred_bal <- prediction(predictions_bal, InRenewTest$churn1)
+plot(performance(pred_bal, "tpr", "fpr"), colorize = TRUE)
+```
+
+
+```{r}
+logit.pred.imb <- as.factor(ifelse(predictions_imb > 0.5, 1, 0))
+caret::confusionMatrix(logit.pred.imb, InRenewTest$churn1, positive = "1")
+
+
+logit.pred.bal <- as.factor(ifelse(predictions_bal > 0.5, 1, 0))
+caret::confusionMatrix(logit.pred.bal, InRenewTest$churn1, positive = "1")
+```
+
+```{r}
+## Logistic Regression IMBALANCED
+test <- InRenewTest$churn1
+pred <- logit.pred.imb
+prob <- predictions_imb
+
+# Logistic Regression ROC curve IMBALANCED
+roc.pred <- prediction(predictions = prob, labels = test)
+roc.perf <- performance(roc.pred, measure = "tpr", x.measure = "fpr")
+plot(roc.perf, main = "ROC Curve Churn Prediction", col = 2, lwd = 2)
+abline(a = 0, b = 1, lwd = 3, lty = 2, col = 1)
+```
+
+
+```{r}
+## Logistic Regression BALANCED
+test <- InRenewTest$churn1
+pred_bal <- logit.pred.bal
+prob_bal <- predictions_bal
+
+# Logistic Regression ROC curve
+roc.pred_bal <- prediction(predictions = prob_bal, labels = test)
+roc.perf_bal <- performance(roc.pred_bal, measure = "tpr", x.measure = "fpr")
+plot(roc.perf_bal, main = "ROC Curve for Churn Prediction", col = 2, lwd = 2)
+abline(a = 0, b = 1, lwd = 3, lty = 2, col = 1)
+```
+
+
+```{r}
+## Logistic Regression Performance Metrics IMBALANCED
+accuracy <- mean(test == pred)
+precision <- posPredValue(pred, test, positive = "1")
+recall <- caret::sensitivity(pred, test, positive = "1")
+fmeasure <- (2 * precision * recall)/(precision + recall)
+confmat <- caret::confusionMatrix(pred, test, positive = "1")
+kappa <- as.numeric(confmat$overall["Kappa"])
+auc <- as.numeric(performance(roc.pred, measure = "auc")@y.values)
+comparisonsimb <- tibble(approach="Logistic Regression Imbalanced", accuracy = accuracy, fmeasure = fmeasure,kappa = kappa, auc = auc)
+
+
+## Logistic Regression Performance Metrics BALANCED
+accuracybal <- mean(test == pred_bal)
+precisionbal <- posPredValue(pred_bal, test, positive = "1")
+recallbal <- caret::sensitivity(pred_bal, test, positive = "1")
+fmeasurebal <- (2 * precision * recall)/(precision + recall)
+confmatbal <- caret::confusionMatrix(pred_bal, test, positive = "1")
+kappabal <- as.numeric(confmatbal$overall["Kappa"])
+aucbal <- as.numeric(performance(roc.pred_bal, measure = "auc")@y.values)
+comparisonsbal <- tibble(approach="Logistic Regression Balanced", accuracy = accuracybal, fmeasure = fmeasurebal,kappa = kappabal, auc = aucbal)
+```
+
+## R Random forest
+```{r}
+## Create a control object.
+set.seed(989585)
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 10,
+                     repeats = 10,
+                     selectionFunction = "best")
+
+## Create a grid search based on the available parameters.
+grid <- expand.grid(.mtry = c(1:13))
+
+## Build the random forest model
+rf.mod <- 
+  train(churn1 ~.,
+        data = InRenewTrain,
+        method = 'rf',
+        metric = 'Accuracy',
+        trControl = ctrl,
+        tuneGrid = grid,
+        na.action=na.exclude)
+
+rf.mod
+```
+
+
+```{r}
+rf.pred <- predict(rf.mod, InRenewTest, type = "raw")
+rf.pred.prob <- predict(rf.mod, InRenewTest, type = "prob")[,2]
+```
+
+
+```{r}
+caret::confusionMatrix(rf.pred, InRenewTest$churn1, positive = "1")
+```
+
+
+```{r}
+## Random Forest IMBALANCED
+test <- InRenewTest$churn1
+predrf <- rf.pred
+probrf <- rf.pred.prob
+
+# Random Forest ROC curve IMBALANCED
+roc.predrf <- prediction(predictions = probrf, labels = test)
+roc.perfrf <- performance(roc.predrf, measure = "tpr", x.measure = "fpr")
+plot(roc.perfrf, main = "ROC Curve Churn Prediction", col = 2, lwd = 2)
+abline(a = 0, b = 1, lwd = 3, lty = 2, col = 1)
+```
+
+```{r}
+## Random Forest Performance Metrics IMBALANCED
+auc <- as.numeric(performance(roc.predrf, measure = "auc")@y.values)
+comparisonsimb <- tibble(approach="Logistic Regression Imbalanced", accuracy = accuracy, fmeasure = fmeasure,kappa = kappa, auc = auc)
+```
+
+
+```{r}
+set.seed(42)
+rf.mod_down <- train(churn1 ~ .,
+                     data = InRenew_under,
+                     method = "rf",
+                     tuneGrid = grid,
+                     trControl = ctrl)
+rf.mod_down
+```
+
+```{r}
+rf.pred_down <- predict(rf.mod_down, InRenewTest, type = "raw")
+rf.pred.prob_down <- predict(rf.mod_down, InRenewTest, type = "prob")[,2]
+```
+
+```{r}
+caret::confusionMatrix(rf.pred_down, InRenewTest$churn1, positive = "1")
+```
+
+
+```{r}
+## Random Forest BALANCED
+test <- InRenewTest$churn1
+pred_balrf <- rf.pred_down
+prob_balrf <- rf.pred.prob_down
+
+# Random Forest ROC curve
+roc.pred_balrf <- prediction(predictions = prob_balrf, labels = test)
+roc.perf_balrf <- performance(roc.pred_balrf, measure = "tpr", x.measure = "fpr")
+plot(roc.perf_balrf, main = "ROC Curve for Churn Prediction", col = 2, lwd = 2)
+abline(a = 0, b = 1, lwd = 3, lty = 2, col = 1)
+```
+
+```{r}
+
+## Random Forest Performance Metrics BALANCED
+kappabal <- as.numeric(confmatbal$overall["Kappa"])
+aucbalrf <- as.numeric(performance(roc.pred_balrf, measure = "auc")@y.values)
+comparisonsbal <- tibble(approach="Logistic Regression Balanced", accuracy = accuracybal, fmeasure = fmeasurebal,kappa = kappabal, auc = aucbal)
+```
+
+```{r}
+plot(roc.perf, col = 3, lty = 3, main = "ROC-AUC curve")
+plot(roc.perfrf, col = 4, lty = 3, add = TRUE)
+abline(a = 0, b = 1, lwd = 2, lty = 1, col = 1)
+legend("topleft", legend=c("Logistic regression imbalanced", "Random Forest imbalanced"),
+       col=c("green", "blue"), lty=1:2, cex=0.8)
+```
+
+
+```{r}
+vip::vip(log.reg.imb, num_features =20)
+```
+
+

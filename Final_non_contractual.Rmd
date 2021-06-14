@@ -1,0 +1,265 @@
+---
+title: "Only hearing aid"
+author: "Paola Priante"
+date: "6/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Analysis
+## Packages
+```{r}
+library("tidymodels")
+library("themis")
+library("knitr")
+library("ranger")
+library("doParallel")
+library("vip")
+library("skimr")
+library("corrplot")
+library("ggridges")
+library("CLVTools")
+```
+
+
+```{r}
+rm(list = ls())
+load("covariates.RData")
+load("transactions.RData")
+summary(transactions$client_id)
+
+#transactions$client_id <- as.factor(transactions$client_id)
+
+```
+
+```{r}
+# Load the package
+#library(nnet)
+# Run the model
+#summary(multinom(channel.doctor ~ age + State.NL + State.QRO + State.CDMX + State.EDOMEX, data=covariates))
+```
+
+
+```{r}
+transactions$year <- as.numeric(format(transactions$date, '%Y'))
+transactions <- transactions[,c("client_id","date","year","price")]
+join.date <- aggregate(date~client_id,transactions,min, na.rm = TRUE)
+colnames(join.date)[2] <- "Join_Date"
+transactions <- merge(transactions, join.date, by.x = "client_id",by.y = "client_id", all.x = TRUE)
+rm(join.date)
+transactions$cohort <- as.numeric(format(transactions$Join_Date, "%Y"))
+transactions$Age_by_Day <- as.numeric(difftime(transactions$date,transactions$Join_Date,units = c("days")))
+transactions$Age_by_Year <- floor(transactions$Age_by_Day/365)
+```
+
+##Filter by cohort
+```{r}
+cohort2017 <- transactions %>%
+      filter(transactions$cohort==2017)
+cohort2018 <- transactions %>%
+      filter(transactions$cohort==2018)
+```
+
+
+```{r}
+#2017
+myclvdata2017 = clvdata(cohort2017,
+                    date.format="ymd",
+                    time.unit = "weeks",
+                    estimation.split = 88, #length of the estimation period
+                    name.id = "client_id",
+                    name.date = "date",
+                    name.price = "price")
+summary(myclvdata2017)
+#2018
+myclvdata2018 = clvdata(cohort2018,
+                    date.format="ymd",
+                    time.unit = "weeks",
+                    estimation.split = 88, #length of the estimation period
+                    name.id = "client_id",
+                    name.date = "date",
+                    name.price = "price")
+summary(myclvdata2018)
+
+
+
+##########################
+est.pnbd2017 = pnbd(clv.data = myclvdata2017)
+summary(est.pnbd2017)
+coef(est.pnbd2017)
+logLik(est.pnbd2017)
+confint(est.pnbd2017)
+
+
+# r/alpha can be interpreted as the mean purchase and s/beta as the mean attrition rate.
+mean_transaction_rate2017 = coef(est.pnbd2017)[1] / coef(est.pnbd2017)[2] # average number of transactions per customer per week
+mean_attrition_rate2017 = coef(est.pnbd2017)[3] / coef(est.pnbd2017)[4]   # average attrition per customer per week 
+################
+est.pnbd2018 = pnbd(clv.data = myclvdata2018)
+summary(est.pnbd2018)
+coef(est.pnbd2018)
+logLik(est.pnbd2018)
+confint(est.pnbd2018)
+
+# r/alpha can be interpreted as the mean purchase and s/beta as the mean attrition rate.
+mean_transaction_rate2018 = coef(est.pnbd2018)[1] / coef(est.pnbd2018)[2] # average number of transactions per customer per week
+mean_attrition_rate2018 = coef(est.pnbd2018)[3] / coef(est.pnbd2018)[4]   # average attrition per customer per week 
+
+```
+
+```{r}
+
+###
+print(paste0("Mean transaction rate 2017 = ", round(mean_transaction_rate2017, 3),
+             "; Mean attrition rate 2017= ", round(mean_attrition_rate2017, 3)))
+
+###
+print(paste0("Mean transaction rate 2018 = ", round(mean_transaction_rate2018, 3),
+             "; Mean attrition rate 2018= ", round(mean_attrition_rate2018, 3)))
+
+```
+
+```{r}
+plot(est.pnbd2017, cumulative = TRUE)
+plot(est.pnbd2018, cumulative = TRUE)
+
+```
+
+# Adding covariates
+First i need to make a covariate dataset for each cohort
+```{r}
+
+cov2017 <- covariates %>%
+  filter(client_id %in% cohort2017$client_id)
+cov2018 <- covariates %>%
+  filter(client_id %in% cohort2018$client_id)
+
+```
+
+
+
+#2017
+```{r}
+myclvwthcovdata20172 = SetStaticCovariates(clv.data = myclvdata2017,
+                              data.cov.life = cov2017,   
+                              data.cov.trans = cov2017,   
+                              names.cov.life = c ("age","Referral", "Internet", "Doctor", "CENTRO", "NORTE", "SUR"),   
+                              names.cov.trans = c("age","Referral", "Internet", "Doctor", "CENTRO", "NORTE", "SUR"),  
+                              name.id = "client_id")
+
+est.pnbd.cov20172 = pnbd(myclvwthcovdata20172,
+                   start.params.model = c(r = 8.6872922, alpha = 4788.3164656, s = 0.3111608, beta = 1.2508782 ),
+                   optimx.args = list(method="Nelder-Mead"),
+                   start.params.life = c(),
+                   start.params.trans = c())
+summary(est.pnbd.cov20172)
+```
+
+
+#2018
+```{r}
+myclvwthcovdata20181 = SetStaticCovariates(clv.data = myclvdata2018,
+                              data.cov.life = cov2018,   
+                              data.cov.trans = cov2018,   
+                              names.cov.life = c("Referral", "Internet", "Doctor", "CENTRO", "NORTE", "SUR"),   
+                              names.cov.trans = c("Referral", "Internet", "Doctor", "CENTRO", "NORTE", "SUR"),  
+                              name.id = "client_id")
+
+est.pnbd.cov20181 = pnbd(myclvwthcovdata20181,
+                   start.params.model = c(r = 8.8003153, alpha = 6281.0331403, s = 0.1942591, beta = 0.7927080),
+                   optimx.args = list(method="Nelder-Mead"),
+                   start.params.life = c(),
+                   start.params.trans = c())
+summary(est.pnbd.cov20181)
+
+```
+
+
+#
+# Holdout predictions with covariates
+#
+
+
+```{r}
+
+#2017
+mypredictions20172 = predict(est.pnbd.cov20171, continuous.discount.factor = .1)
+#2018
+mypredictions20181 = predict(est.pnbd.cov2018, continuous.discount.factor = .1)
+
+```
+
+#
+# Explore differences between channels
+#
+
+
+
+```{r}
+mypredictions2017NORTE = mypredictions2017[cov2017$NORTE == 1,]
+mypredictions2017SUR = mypredictions2017[cov2017$SUR == 1,]
+mypredictions2017CENTRO= mypredictions2017[cov2017$CENTRO == 1,]
+mypredictions2017CENTRONORTE= mypredictions2017[cov2017$CENTRONORTE == 1,]
+
+mypredictions2018NORTE = mypredictions2018[cov2018$NORTE == 1,]
+mypredictions2018SUR = mypredictions2018[cov2018$SUR == 1,]
+mypredictions2018CENTRO= mypredictions2018[cov2018$CENTRO == 1,]
+mypredictions2018CENTRONORTE= mypredictions2018[cov2018$CENTRONORTE == 1,]
+
+# in retention probability
+pred_2017_state <- boxplot(mypredictions2017NORTE$PAlive,
+        mypredictions2017SUR$PAlive,
+        mypredictions2017CENTRO$PAlive,
+        names = c("NORTE","SUR","CENTRO"),
+        ylab = "Retention Probability")
+
+save(pred_2017_state, file ="2017State", type = "png")
+
+# in residual number of transactions
+boxplot(mypredictions2019.NL$DERT,
+        mypredictions2019.QRO$DERT,
+        mypredictions2019.CDMX$DERT,
+        mypredictions2019.EDOMEX$DERT,
+        names = c("NL","QRO","CDMX","EDOMEX"),
+        ylab = "DERT")
+
+# in mean spending
+boxplot(mypredictions2019.NL$predicted.mean.spending,
+        mypredictions2019.QRO$predicted.mean.spending,
+        mypredictions2019.CDMX$predicted.mean.spending,
+        mypredictions2019.EDOMEX$predicted.mean.spending,
+        names = c("NL","QRO","CDMX","EDOMEX"),
+        ylab = "Mean Spending")
+
+# in residual CLV
+boxplot(mypredictions2019.NL$predicted.CLV,
+        mypredictions2019.QRO$predicted.CLV,
+        mypredictions2019.CDMX$predicted.CLV,
+        mypredictions2019.EDOMEX$predicted.CLV,
+        names = c("NL","QRO","CDMX","EDOMEX"),
+        ylab = "Residual CLV")
+```
+
+
+```{r dev = "png"}
+pred_2017_state <- boxplot(mypredictions2017NORTE$PAlive,
+        mypredictions2017SUR$PAlive,
+        mypredictions2017CENTRO$PAlive,
+        names = c("NORTE","SUR","CENTRO"),
+        ylab = "Retention Probability")
+```
+
+
+```{r}
+
+est.gg20172 = gg(clv.data = myclvdata2017)
+plot(est.gg20172)
+est.gg20181 = gg(clv.data = myclvdata2018)
+plot(est.gg20181)
+
+
+```
+
