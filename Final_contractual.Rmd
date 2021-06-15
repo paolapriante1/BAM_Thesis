@@ -56,7 +56,12 @@ dplyr::select(-repurchase, -date)
 ```
 
 ```{r}
-log_regression <- glm(churn1 ~ ., data=InRenew, family=binomial(link="logit"))
+InRenewTrain$branch <- relevel(InRenewTrain$branch, ref = 'ESP')
+InRenewTrain$channel1 <- relevel(InRenewTrain$channel1, ref = 'DOCTOR')
+InRenewTrain$typepayment <- relevel(InRenewTrain$typepayment, ref = 'CASH')
+InRenewTrain$state1 <- relevel(InRenewTrain$state1, ref = 'NORTH')
+InRenewTrain$technology <- relevel(InRenewTrain$technology, ref = 'DIGITAL BÁSICO')
+log_regression <- glm(churn1 ~ ., data=InRenewTrain, family=binomial(link="logit"))
 summary(log_regression)
 ```
 
@@ -267,6 +272,7 @@ legend("topleft", legend=c("Logistic regression imbalanced", "Random Forest imba
 
 ```{r}
 vip::vip(log.reg.imb, num_features =20)
+vip::vip(rf.mod, num_features =20)
 ```
 
 
