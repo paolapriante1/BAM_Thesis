@@ -199,58 +199,65 @@ mypredictions20181 = predict(est.pnbd.cov2018, continuous.discount.factor = .1)
 
 
 ```{r}
-mypredictions2017NORTE = mypredictions2017[cov2017$NORTE == 1,]
-mypredictions2017SUR = mypredictions2017[cov2017$SUR == 1,]
-mypredictions2017CENTRO= mypredictions2017[cov2017$CENTRO == 1,]
-mypredictions2017CENTRONORTE= mypredictions2017[cov2017$CENTRONORTE == 1,]
+plot(est.pnbd2017, cumulative = TRUE)
+plot(est.pnbd2018, cumulative = TRUE)
 
-mypredictions2018NORTE = mypredictions2018[cov2018$NORTE == 1,]
-mypredictions2018SUR = mypredictions2018[cov2018$SUR == 1,]
-mypredictions2018CENTRO= mypredictions2018[cov2018$CENTRO == 1,]
-mypredictions2018CENTRONORTE= mypredictions2018[cov2018$CENTRONORTE == 1,]
+plot(est.pnbd.cov20172, cumulative = TRUE)
+plot(est.pnbd.cov20181, cumulative = TRUE)
 
-# in retention probability
-pred_2017_state <- boxplot(mypredictions2017NORTE$PAlive,
-        mypredictions2017SUR$PAlive,
-        mypredictions2017CENTRO$PAlive,
-        names = c("NORTE","SUR","CENTRO"),
-        ylab = "Retention Probability")
 
-save(pred_2017_state, file ="2017State", type = "png")
+mypredictions20172NORTE = mypredictions20172[cov2017$NORTE == 1,]
+mypredictions20172SUR = mypredictions20172[cov2017$SUR == 1,]
+mypredictions20172CENTRO= mypredictions20172[cov2017$CENTRO == 1,]
+mypredictions20172CENTRONORTE= mypredictions20172[cov2017$CENTRONORTE == 1,]
 
-# in residual number of transactions
-boxplot(mypredictions2019.NL$DERT,
-        mypredictions2019.QRO$DERT,
-        mypredictions2019.CDMX$DERT,
-        mypredictions2019.EDOMEX$DERT,
-        names = c("NL","QRO","CDMX","EDOMEX"),
-        ylab = "DERT")
+mypredictions20181NORTE = mypredictions20181[cov2018$NORTE == 1,]
+mypredictions20181SUR = mypredictions20181[cov2018$SUR == 1,]
+mypredictions20181CENTRO= mypredictions20181[cov2018$CENTRO == 1,]
+mypredictions20181CENTRONORTE= mypredictions20181[cov2018$CENTRONORTE == 1,]
 
-# in mean spending
-boxplot(mypredictions2019.NL$predicted.mean.spending,
-        mypredictions2019.QRO$predicted.mean.spending,
-        mypredictions2019.CDMX$predicted.mean.spending,
-        mypredictions2019.EDOMEX$predicted.mean.spending,
-        names = c("NL","QRO","CDMX","EDOMEX"),
-        ylab = "Mean Spending")
 
-# in residual CLV
-boxplot(mypredictions2019.NL$predicted.CLV,
-        mypredictions2019.QRO$predicted.CLV,
-        mypredictions2019.CDMX$predicted.CLV,
-        mypredictions2019.EDOMEX$predicted.CLV,
-        names = c("NL","QRO","CDMX","EDOMEX"),
-        ylab = "Residual CLV")
+mypredictions20172Referral = mypredictions20172[cov2017$Referral == 1,]
+mypredictions20172Internet = mypredictions20172[cov2017$Internet == 1,]
+mypredictions20172Doctor= mypredictions20172[cov2017$Doctor == 1,]
+mypredictions20172AK= mypredictions20172[cov2017$AK == 1,]
+
+
+mypredictions20181Referral = mypredictions20181[cov2018$Referral == 1,]
+mypredictions20181Internet = mypredictions20181[cov2018$Internet == 1,]
+mypredictions20181Doctor= mypredictions20181[cov2018$Doctor == 1,]
+mypredictions20181AK= mypredictions20181[cov2018$AK == 1,]
+
+
+pred_2017_state <- boxplot(mypredictions20172NORTE$PAlive,
+                           mypredictions20172SUR$PAlive,
+                           mypredictions20172CENTRO$PAlive,
+                           mypredictions20172CENTRONORTE$PAlive,
+                           names = c("NORTE","SUR","CENTRO","CENTRONORTE"),
+                           ylab = "Retention Probability 2017")
+
+pred_2018_state <- boxplot(mypredictions20181NORTE$PAlive,
+                           mypredictions20181SUR$PAlive,
+                           mypredictions20181CENTRO$PAlive,
+                           mypredictions20181CENTRONORTE$PAlive,
+                           names = c("NORTE","SUR","CENTRO","CENTRONORTE"),
+                           ylab = "Retention Probability 2018")
+
+pred_2017_channel <- boxplot(mypredictions20172Referral$PAlive,
+                           mypredictions20172Internet$PAlive,
+                           mypredictions20172Doctor$PAlive,
+                           mypredictions20172AK$PAlive,
+                           names = c("Referral","Internet","Doctor","AK"),
+                           ylab = "Retention Probability 2017")
+
+pred_2018_channel <- boxplot(mypredictions20181Referral$PAlive,
+                           mypredictions20181Internet$PAlive,
+                           mypredictions20181Doctor$PAlive,
+                           mypredictions20181AK$PAlive,
+                           names = c("Referral","Internet","Doctor","AK"),
+                           ylab = "Retention Probability 2018")
 ```
 
-
-```{r dev = "png"}
-pred_2017_state <- boxplot(mypredictions2017NORTE$PAlive,
-        mypredictions2017SUR$PAlive,
-        mypredictions2017CENTRO$PAlive,
-        names = c("NORTE","SUR","CENTRO"),
-        ylab = "Retention Probability")
-```
 
 
 ```{r}
